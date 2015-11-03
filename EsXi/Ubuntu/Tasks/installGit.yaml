@@ -1,0 +1,86 @@
+---
+#Tasks necessary to build and install git compiled against openssl instead of the default gnutls.
+# This solves a problem between gnutls and EsXI Vms where git fails to clone a repository over a secure tunnel.
+    - name: Check if the git source already exists
+      stat: path=/root/git-openssl/git_1.9.1-1ubuntu0.1_amd64.deb
+      register: git_source
+    
+    -
+      name: Install build-essential.
+      apt: pkg=build-essential state=present update_cache=yes
+      when: (git_source.stat.exists == false)
+   
+    -
+      name: Install dpkg-dev.
+      apt: pkg=dpkg-dev state=present update_cache=yes     
+      when: (git_source.stat.exists == false)
+      
+    - name: Assures git-openssl directory exists.
+      file: path=/root/git-openssl state=directory
+      
+      
+    -
+      name: Install git source
+      shell: apt-get source git
+      args:
+        chdir: /root/git-openssl/
+      when: (git_source.stat.exists == false)
+
+    -
+      name: Download git dependencies
+      shell: apt-get build-dep -y git
+      args:
+        chdir: /root/git-openssl/
+      when: (git_source.stat.exists == false)
+    
+    -
+      name: Install libcurl4-openssl-dev
+      apt: pkg=libcurl4-openssl-dev state=present update_cache=yes
+      when: (git_source.stat.exists == false)
+    
+    -
+      name: Extract git source
+      shell: dpkg-source -x git_*.dsc
+      args:
+        chdir: /root/git-openssl/
+      when: (git_source.stat.exists == false)
+      
+    -
+      name: configure control to link against openssl.
+      copy: src=../data/git-control dest=/root/git-openssl/git-1.9.1/debian/control mode=0644     
+      when: (git_source.stat.exists == false)
+    
+    -
+      name: Disable unit tests.
+      copy: src=../data/git-rules dest=/root/git-openssl/git-1.9.1/debian/rules mode=0644
+      when: (git_source.stat.exists == false)     
+    
+    -
+      name: Build the git package
+      shell: dpkg-buildpackage -b
+      args:
+        chdir: /root/git-openssl/git-1.9.1
+      when: (git_source.stat.exists == false)
+ 
+    -
+      name: Instal gdebi to install dependencies
+      apt: pkg=gdebi-core state=present update_cache=yes
+      when: (git_source.stat.exists == false)
+
+    - name: Check if the git debian package was created 
+      stat: path=/root/git-openssl/git_1.9.1-1ubuntu0.1_amd64.deb
+      register: git_source
+ 
+    -
+      name: install the git man package
+      shell: gdebi -n git-man_1.9.1-1ubuntu0.1_all.deb
+      args:
+        chdir: /root/git-openssl/
+      when: (git_source.stat.exists == true)
+ 
+    -
+      name: install the git package
+      shell: gdebi -n git_1.9.1-1ubuntu0.1_amd64.deb
+      args:
+        chdir: /root/git-openssl/
+      when: (git_source.stat.exists == true) 
